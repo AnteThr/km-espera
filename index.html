@@ -7,23 +7,19 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Km Espera">
-  <!-- manifest is injected dynamically by script to include ?key= in start_url -->
+  <!-- manifest is injected dynamically to include ?key= in start_url -->
   <link rel="apple-touch-icon" href="icon-192.png">
   <title>KilometraÅ¾a Espera v6.1</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body { width: 100%; height: 100%; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
 
-    #app-frame { width: 100%; height: 100%; border: none; }
-
     #splash {
       position: fixed; inset: 0; z-index: 1000;
       background: #2b7d73;
       display: flex; flex-direction: column;
       align-items: center; justify-content: center;
-      transition: opacity 0.4s;
     }
-    #splash.hide { opacity: 0; pointer-events: none; }
     #splash .logo {
       width: 96px; height: 96px; border-radius: 20px;
       background: rgba(255,255,255,0.15);
@@ -49,7 +45,7 @@
     }
 
     #install-banner {
-      position: fixed; bottom: 0; left: 0; right: 0; z-index: 500;
+      position: fixed; bottom: 0; left: 0; right: 0; z-index: 1001;
       background: #fff; border-top: 1px solid #ddd;
       padding: 12px 16px; display: none;
       align-items: center; gap: 12px;
@@ -99,29 +95,18 @@
     <button class="ib-close" id="ib-close">&times;</button>
   </div>
 
-  <!-- GAS app iframe -->
-  <iframe id="app-frame" src="about:blank" allow="camera;geolocation"></iframe>
-
   <script>
     // ---- CONFIG ----
-    // IMPORTANT: Replace this URL with your actual GAS deployment URL (without ?key=...)
     var GAS_BASE_URL = 'https://script.google.com/macros/s/AKfycbwHfgO5DKb7gZeMLFSGMSgHS03RsgmJIJPSlVtU9oTtEWRYy1GtV0oOW5nL2vdz6Ag-xA/exec';
     // ---- END CONFIG ----
 
-    // Extract key from URL or localStorage
     var params = new URLSearchParams(window.location.search);
     var userKey = params.get('key');
-
-    // If key is in URL, save it for future PWA launches
-    if (userKey) {
-      try { localStorage.setItem('km_espera_key', userKey); } catch(e) {}
-    } else {
-      // No key in URL â€” try localStorage (PWA launched from home screen)
-      try { userKey = localStorage.getItem('km_espera_key'); } catch(e) {}
-    }
+    var isStandalone = window.matchMedia('(display-mode: standalone)').matches
+                    || window.navigator.standalone === true;
 
     // ---- DYNAMIC MANIFEST ----
-    // Inject manifest with start_url that includes ?key= so PWA always opens with the right key
+    // Must be injected BEFORE beforeinstallprompt fires
     if (userKey) {
       var manifest = {
         name: "Kilometra\u017ea Espera v6.1",
@@ -139,33 +124,30 @@
         ]
       };
       var blob = new Blob([JSON.stringify(manifest)], { type: 'application/json' });
-      var manifestUrl = URL.createObjectURL(blob);
       var link = document.createElement('link');
       link.rel = 'manifest';
-      link.href = manifestUrl;
+      link.href = URL.createObjectURL(blob);
       document.head.appendChild(link);
     }
 
     if (!userKey) {
-      document.getElementById('splash').classList.add('hide');
+      // No key at all â€” show error
+      document.getElementById('splash').style.display = 'none';
       document.getElementById('error-screen').style.display = 'flex';
+    } else if (isStandalone) {
+      // Launched from home screen as installed PWA â€” redirect immediately
+      window.location.replace(GAS_BASE_URL + '?key=' + encodeURIComponent(userKey));
     } else {
-      // Load GAS app in iframe
-      var gasUrl = GAS_BASE_URL + '?key=' + encodeURIComponent(userKey);
-      var frame = document.getElementById('app-frame');
+      // Opened in browser â€” show splash, wait for possible install, then redirect
+      // Give the install banner time to appear before redirecting
+      var redirectTimer = setTimeout(function() {
+        window.location.replace(GAS_BASE_URL + '?key=' + encodeURIComponent(userKey));
+      }, 3000);
 
-      frame.onload = function() {
-        setTimeout(function() {
-          document.getElementById('splash').classList.add('hide');
-        }, 600);
+      // If user clicks install, cancel the redirect
+      window._cancelRedirect = function() {
+        clearTimeout(redirectTimer);
       };
-
-      frame.src = gasUrl;
-
-      // Fallback: hide splash after 8s even if iframe doesn't fire onload
-      setTimeout(function() {
-        document.getElementById('splash').classList.add('hide');
-      }, 8000);
     }
 
     // ---- SERVICE WORKER ----
@@ -184,8 +166,9 @@
     window.addEventListener('beforeinstallprompt', function(e) {
       e.preventDefault();
       deferredPrompt = e;
-      // Show banner only if not already installed
-      if (!window.matchMedia('(display-mode: standalone)').matches) {
+      if (!isStandalone) {
+        // Cancel auto-redirect so user can install
+        if (window._cancelRedirect) window._cancelRedirect();
         banner.style.display = 'flex';
       }
     });
@@ -196,15 +179,20 @@
         deferredPrompt.userChoice.then(function(result) {
           deferredPrompt = null;
           banner.style.display = 'none';
+          // After install choice, redirect to app
+          setTimeout(function() {
+            window.location.replace(GAS_BASE_URL + '?key=' + encodeURIComponent(userKey));
+          }, 500);
         });
       }
     });
 
     document.getElementById('ib-close').addEventListener('click', function() {
       banner.style.display = 'none';
+      // User declined install â€” redirect to app
+      window.location.replace(GAS_BASE_URL + '?key=' + encodeURIComponent(userKey));
     });
 
-    // Hide banner if already installed as PWA
     window.addEventListener('appinstalled', function() {
       banner.style.display = 'none';
     });
