@@ -9,7 +9,7 @@
   <meta name="apple-mobile-web-app-title" content="Km Espera">
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icon-192.png">
-  <title>Kilometraža Espera v6.1</title>
+  <title>KilometraÅ¾a Espera v6.1</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body { width: 100%; height: 100%; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
@@ -77,15 +77,15 @@
   <!-- Splash screen -->
   <div id="splash">
     <div class="logo">KM</div>
-    <div class="title">Kilometraža Espera</div>
+    <div class="title">KilometraÅ¾a Espera</div>
     <div class="loader"></div>
   </div>
 
   <!-- Error screen -->
   <div id="error-screen">
     <h2>Nema pristupa</h2>
-    <p id="error-msg">Nedostaje ključ (?key=...) u URL-u.</p>
-    <button onclick="location.reload()">Pokušaj ponovo</button>
+    <p id="error-msg">Nedostaje kljuÄ (?key=...) u URL-u.</p>
+    <button onclick="location.reload()">PokuÅ¡aj ponovo</button>
   </div>
 
   <!-- Install banner -->
@@ -108,9 +108,17 @@
     var GAS_BASE_URL = 'https://script.google.com/macros/s/AKfycbwHfgO5DKb7gZeMLFSGMSgHS03RsgmJIJPSlVtU9oTtEWRYy1GtV0oOW5nL2vdz6Ag-xA/exec';
     // ---- END CONFIG ----
 
-    // Extract key from URL
+    // Extract key from URL or localStorage
     var params = new URLSearchParams(window.location.search);
     var userKey = params.get('key');
+
+    // If key is in URL, save it for future PWA launches
+    if (userKey) {
+      try { localStorage.setItem('km_espera_key', userKey); } catch(e) {}
+    } else {
+      // No key in URL â€” try localStorage (PWA launched from home screen)
+      try { userKey = localStorage.getItem('km_espera_key'); } catch(e) {}
+    }
 
     if (!userKey) {
       document.getElementById('splash').classList.add('hide');
