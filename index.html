@@ -130,21 +130,31 @@
       document.head.appendChild(link);
     }
 
+    var gasUrl = userKey ? GAS_BASE_URL + '?key=' + encodeURIComponent(userKey) : null;
+
+    // Open GAS in Chrome (not in PWA WebView) using intent URL on Android
+    function openInChrome(url) {
+      // Android intent forces Chrome to open the URL (shares Google auth session)
+      var intentUrl = 'intent://' + url.replace(/^https?:\/\//, '') +
+        '#Intent;scheme=https;package=com.android.chrome;end';
+      window.location.href = intentUrl;
+      // Fallback if intent doesn't work (iOS, desktop)
+      setTimeout(function() { window.open(url, '_blank'); }, 500);
+    }
+
     if (!userKey) {
-      // No key at all â€” show error
+      // No key â€” show error
       document.getElementById('splash').style.display = 'none';
       document.getElementById('error-screen').style.display = 'flex';
     } else if (isStandalone) {
-      // Launched from home screen as installed PWA â€” redirect immediately
-      window.location.replace(GAS_BASE_URL + '?key=' + encodeURIComponent(userKey));
+      // Launched from home screen â€” open in Chrome after brief splash
+      setTimeout(function() { openInChrome(gasUrl); }, 800);
     } else {
-      // Opened in browser â€” show splash, wait for possible install, then redirect
-      // Give the install banner time to appear before redirecting
+      // Opened in browser â€” wait for install banner, then redirect
       var redirectTimer = setTimeout(function() {
-        window.location.replace(GAS_BASE_URL + '?key=' + encodeURIComponent(userKey));
+        window.location.replace(gasUrl);
       }, 3000);
 
-      // If user clicks install, cancel the redirect
       window._cancelRedirect = function() {
         clearTimeout(redirectTimer);
       };
@@ -180,9 +190,7 @@
           deferredPrompt = null;
           banner.style.display = 'none';
           // After install choice, redirect to app
-          setTimeout(function() {
-            window.location.replace(GAS_BASE_URL + '?key=' + encodeURIComponent(userKey));
-          }, 500);
+          setTimeout(function() { window.location.replace(gasUrl); }, 500);
         });
       }
     });
@@ -190,7 +198,7 @@
     document.getElementById('ib-close').addEventListener('click', function() {
       banner.style.display = 'none';
       // User declined install â€” redirect to app
-      window.location.replace(GAS_BASE_URL + '?key=' + encodeURIComponent(userKey));
+      window.location.replace(gasUrl);
     });
 
     window.addEventListener('appinstalled', function() {
